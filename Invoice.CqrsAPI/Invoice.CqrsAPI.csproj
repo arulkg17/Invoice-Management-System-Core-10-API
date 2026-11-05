@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" Version="10.2.1" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.6" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <!-- No Invoice.DAL logic is written here. The CQRS handlers call Invoice.BAL services only.
+       DAL / Data are referenced just so Program.cs can register the repositories + AppDbContext
+       (exactly like Invoice.CoreAPI does). -->
+  <ItemGroup>
+    <ProjectReference Include="..\Invoice.BAL\Invoice.BAL.csproj" />
+    <ProjectReference Include="..\Invoice.DAL\Invoice.DAL.csproj" />
+    <ProjectReference Include="..\Invoice.Data\Invoice.Data.csproj" />
+    <ProjectReference Include="..\Invoice.DTOs\Invoice.DTOs.csproj" />
+    <ProjectReference Include="..\Invoice.Model\Invoice.Model.csproj" />
+  </ItemGroup>
+
+</Project>
