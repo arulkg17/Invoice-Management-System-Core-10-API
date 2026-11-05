@@ -1,0 +1,515 @@
+# =====================================================================================
+#  Invoice.CqrsAPI  -  end-to-end walkthrough
+#
+#  HOW TO USE (Visual Studio 2022 / 2026: open this file, click "Send request" above each request)
+#    1. Start the API (http://localhost:5064).
+#    2. Change @run below to a NEW number every time you replay the whole file
+#       (codes and user names must be unique, otherwise you get the duplicate-code errors on purpose).
+#    3. Send the requests from top to bottom. Each one saves what the next one needs.
+#
+#  VS Code "REST Client" extension: it reads responses without the "$." part, so change
+#       {{login.response.body.$.data.token}}   ->   {{login.response.body.data.token}}
+#  in every "@name = {{...response.body.$....}}" line (search for  body.$.  and remove the  $.  ).
+# =====================================================================================
+
+@baseUrl = http://localhost:5064
+@run = 1
+@demoUser = demo{{run}}
+@demoPassword = Passw0rd!
+
+### 0.1 Health check
+GET {{baseUrl}}/health
+
+###
+# =====================================================================================
+#  1. SIGN UP + LOGIN
+# =====================================================================================
+
+### 1.1 Register a demo user (anonymous, like Invoice.CoreAPI).  Second time with the same @run -> 409 Conflict
+# @name register
+POST {{baseUrl}}/api/v1/User/Create
+Content-Type: application/json
+
+{
+  "userName": "{{demoUser}}",
+  "email": "{{demoUser}}@example.com",
+  "password": "{{demoPassword}}",
+  "firstName": "Demo",
+  "lastName": "Teacher",
+  "displayName": "",
+  "phoneNumber": "+91 98765 43210",
+  "addressLine1": "1 Main Road",
+  "city": "Chennai",
+  "state": "TN",
+  "zipCode": "600001",
+  "country": "India",
+  "isActive": true
+}
+
+### 1.2 Login -> returns the JWT
+# @name login
+POST {{baseUrl}}/api/v1/Login
+Content-Type: application/json
+
+{
+  "userName": "{{demoUser}}",
+  "password": "{{demoPassword}}"
+}
+
+###
+@token = {{login.response.body.$.data.token}}
+@userId = {{login.response.body.$.data.user.id}}
+
+### 1.3 Check the token works
+GET {{baseUrl}}/api/v1/User/GetById/{{userId}}
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  2. CATEGORY
+# =====================================================================================
+
+### 2.1 Create
+# @name createCategory
+POST {{baseUrl}}/api/v1/Category/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "code": "CAT-{{run}}",
+  "name": "Stationery {{run}}",
+  "description": "Created from the .http file",
+  "isActive": true
+}
+
+###
+@categoryId = {{createCategory.response.body.$.data}}
+
+### 2.2 GetAll
+GET {{baseUrl}}/api/v1/Category/GetAll
+Authorization: Bearer {{token}}
+
+### 2.3 GetById
+GET {{baseUrl}}/api/v1/Category/GetById/{{categoryId}}
+Authorization: Bearer {{token}}
+
+### 2.4 GetAllPaged
+GET {{baseUrl}}/api/v1/Category/GetAllPaged?Code=CAT&pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### 2.5 Update
+PUT {{baseUrl}}/api/v1/Category/Update/{{categoryId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "code": "CAT-{{run}}",
+  "name": "Stationery (renamed) {{run}}",
+  "description": "Edited",
+  "isActive": true
+}
+
+###
+# =====================================================================================
+#  3. ITEM, VENDOR, CUSTOMER
+# =====================================================================================
+
+### 3.1 Item - create
+# @name createItem
+POST {{baseUrl}}/api/v1/Itemmaster/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "categoryId": {{categoryId}},
+  "itemBarCode": "BC-{{run}}",
+  "itemCode": "ITM-{{run}}",
+  "itemName": "Pen {{run}}",
+  "description": "Blue pen",
+  "uom": "Nos",
+  "rate": 150,
+  "minimumStock": 5,
+  "maximumStock": 500,
+  "isActive": true
+}
+
+###
+@itemId = {{createItem.response.body.$.data}}
+
+### 3.2 Item - GetById
+GET {{baseUrl}}/api/v1/Itemmaster/GetById/{{itemId}}
+Authorization: Bearer {{token}}
+
+### 3.3 Item - paged search
+GET {{baseUrl}}/api/v1/Itemmaster/GetAllPaged?CategoryId={{categoryId}}&PageNumber=1&PageSize=10
+Authorization: Bearer {{token}}
+
+### 3.4 Item - active count in the category
+GET {{baseUrl}}/api/v1/Itemmaster/GetActiveItemCountByCategory/{{categoryId}}
+Authorization: Bearer {{token}}
+
+### 3.5 Vendor - create
+# @name createVendor
+POST {{baseUrl}}/api/v1/Vendor/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "vendorCode": "VEND-{{run}}",
+  "vendorName": "Vendor {{run}} Pvt Ltd",
+  "contactPerson": "Ravi",
+  "mobileNo": "+91 90000 11111",
+  "email": "vendor{{run}}@example.com",
+  "address1": "12 Market Street",
+  "city": "Chennai",
+  "state": "TN",
+  "country": "India",
+  "zipCode": "600002",
+  "gstNo": "33ABCDE1234F1Z5",
+  "isActive": true
+}
+
+###
+@vendorId = {{createVendor.response.body.$.data}}
+
+### 3.6 Customer - create
+# @name createCustomer
+POST {{baseUrl}}/api/v1/Customer/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "customerCode": "CUST-{{run}}",
+  "customerName": "Customer {{run}} Pvt Ltd",
+  "contactPerson": "Meena",
+  "mobileNo": "+91 90000 22222",
+  "email": "customer{{run}}@example.com",
+  "address1": "34 Lake Road",
+  "city": "Chennai",
+  "state": "TN",
+  "country": "India",
+  "zipCode": "600003",
+  "gstNo": "33ABCDE5678F1Z9",
+  "isActive": true
+}
+
+###
+@customerId = {{createCustomer.response.body.$.data}}
+
+### 3.7 Vendor / Customer - paged search
+GET {{baseUrl}}/api/v1/Vendor/GetAllPaged?City=Chennai&pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+###
+GET {{baseUrl}}/api/v1/Customer/GetAllPaged?City=Chennai&pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  4. PURCHASE ORDER   (Draft -> Approved)
+# =====================================================================================
+
+### 4.1 Create (always starts as Draft; the BAL calculates the totals)
+# @name createPO
+POST {{baseUrl}}/api/v1/PurchaseOrder/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "poNumber": "PO-{{run}}",
+  "poDate": "2026-11-05T00:00:00",
+  "vendorId": {{vendorId}},
+  "notes": "Created from the .http file",
+  "details": [
+    { "itemmasterId": {{itemId}}, "quantity": 10, "rate": 100, "discountAmount": 0, "taxPercent": 18 }
+  ]
+}
+
+###
+@poId = {{createPO.response.body.$.data}}
+
+### 4.2 GetById (note the line id and the 1180 total)
+# @name getPO
+GET {{baseUrl}}/api/v1/PurchaseOrder/GetById/{{poId}}
+Authorization: Bearer {{token}}
+
+###
+@poDetailId = {{getPO.response.body.$.data.details[0].id}}
+
+### 4.3 Update (allowed only while Draft)
+PUT {{baseUrl}}/api/v1/PurchaseOrder/Update/{{poId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "poNumber": "PO-{{run}}",
+  "poDate": "2026-11-05T00:00:00",
+  "vendorId": {{vendorId}},
+  "notes": "Edited while Draft",
+  "details": [
+    { "itemmasterId": {{itemId}}, "quantity": 10, "rate": 100, "discountAmount": 0, "taxPercent": 18 }
+  ]
+}
+
+### 4.4 Approve (Draft -> Approved)
+POST {{baseUrl}}/api/v1/PurchaseOrder/Approve/{{poId}}
+Authorization: Bearer {{token}}
+
+### 4.5 PDF
+GET {{baseUrl}}/api/v1/PurchaseOrder/{{poId}}/pdf
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  5. RECEIPT (goods in) -> STOCK goes up
+# =====================================================================================
+
+### 5.1 Create the receipt (receipt number is generated: GRN-000001 ...)
+# @name createReceipt
+POST {{baseUrl}}/api/v1/Receipt/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiptDate": "2026-11-06T00:00:00",
+  "purchaseOrderId": {{poId}},
+  "notes": "Goods received",
+  "details": [
+    { "purchaseOrderDetailId": {{poDetailId}}, "receivedQuantity": 10 }
+  ]
+}
+
+###
+@receiptId = {{createReceipt.response.body.$.data}}
+
+### 5.2 Post the receipt (Draft -> Posted: updates the PO and the stock)
+POST {{baseUrl}}/api/v1/Receipt/Post/{{receiptId}}
+Authorization: Bearer {{token}}
+
+### 5.3 Stock for the item -> onHandQuantity = 10
+GET {{baseUrl}}/api/v1/Stock/GetByItem/{{itemId}}
+Authorization: Bearer {{token}}
+
+### 5.4 The PO line now shows receivedQuantity = 10
+GET {{baseUrl}}/api/v1/PurchaseOrder/GetById/{{poId}}
+Authorization: Bearer {{token}}
+
+### 5.5 Receipt PDF
+GET {{baseUrl}}/api/v1/Receipt/{{receiptId}}/pdf
+Authorization: Bearer {{token}}
+
+### 5.6 All stock
+GET {{baseUrl}}/api/v1/Stock/GetAll
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  6. SALES INVOICE (goods out) -> STOCK goes down
+# =====================================================================================
+
+### 6.1 Create an invoice for 3 pieces
+# @name createInvoice
+POST {{baseUrl}}/api/v1/SalesInvoice/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "invoiceDate": "2026-11-07T00:00:00",
+  "dueDate": "2026-12-07T00:00:00",
+  "customerId": {{customerId}},
+  "notes": "Created from the .http file",
+  "details": [
+    { "itemmasterId": {{itemId}}, "quantity": 3, "rate": 150, "discountAmount": 0, "taxPercent": 18 }
+  ]
+}
+
+###
+@invoiceId = {{createInvoice.response.body.$.data}}
+
+### 6.2 Post the invoice (the BAL checks the stock, then reduces it)
+POST {{baseUrl}}/api/v1/SalesInvoice/Post/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### 6.3 Stock for the item -> onHandQuantity = 7
+GET {{baseUrl}}/api/v1/Stock/GetByItem/{{itemId}}
+Authorization: Bearer {{token}}
+
+### 6.4 Invoice PDF
+GET {{baseUrl}}/api/v1/SalesInvoice/{{invoiceId}}/pdf
+Authorization: Bearer {{token}}
+
+### 6.5 A second invoice for MORE than the stock (500 pieces)
+# @name createBigInvoice
+POST {{baseUrl}}/api/v1/SalesInvoice/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "invoiceDate": "2026-11-07T00:00:00",
+  "customerId": {{customerId}},
+  "details": [
+    { "itemmasterId": {{itemId}}, "quantity": 500, "rate": 150, "discountAmount": 0, "taxPercent": 18 }
+  ]
+}
+
+###
+@bigInvoiceId = {{createBigInvoice.response.body.$.data}}
+
+### 6.6 Post it -> 400 "not enough stock" (EXPECTED)
+POST {{baseUrl}}/api/v1/SalesInvoice/Post/{{bigInvoiceId}}
+Authorization: Bearer {{token}}
+
+### 6.7 Delete that Draft invoice (allowed because it is Draft)
+DELETE {{baseUrl}}/api/v1/SalesInvoice/Delete/{{bigInvoiceId}}
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  7. ERRORS AND BUSINESS RULES  -  every request below is EXPECTED to fail
+#     Look at the status code and at "message" / "data" in the response.
+# =====================================================================================
+
+### 7.1 No token -> 401
+GET {{baseUrl}}/api/v1/Category/GetAll
+
+### 7.2 Wrong password -> 401
+POST {{baseUrl}}/api/v1/Login
+Content-Type: application/json
+
+{ "userName": "{{demoUser}}", "password": "wrong-password" }
+
+### 7.3 Validation: blank code and name -> 400, data = list of {property, message}
+POST {{baseUrl}}/api/v1/Category/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "code": "", "name": "", "isActive": true }
+
+### 7.4 Validation: PO with no lines -> 400 (Lines)
+POST {{baseUrl}}/api/v1/PurchaseOrder/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "poDate": "2026-11-05T00:00:00", "vendorId": {{vendorId}}, "details": [] }
+
+### 7.5 Validation: a line with quantity 0 -> 400 (Lines[0].Quantity)
+POST {{baseUrl}}/api/v1/PurchaseOrder/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "poDate": "2026-11-05T00:00:00",
+  "vendorId": {{vendorId}},
+  "details": [ { "itemmasterId": {{itemId}}, "quantity": 0, "rate": 100, "discountAmount": 0, "taxPercent": 18 } ]
+}
+
+### 7.6 Validation: page size 0 -> 400
+GET {{baseUrl}}/api/v1/Category/GetAllPaged?pageNumber=1&pageSize=0
+Authorization: Bearer {{token}}
+
+### 7.7 Not found -> 404
+GET {{baseUrl}}/api/v1/Category/GetById/999999
+Authorization: Bearer {{token}}
+
+### 7.8 Duplicate category code -> 400
+POST {{baseUrl}}/api/v1/Category/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "code": "CAT-{{run}}", "name": "Same code again", "isActive": true }
+
+### 7.9 PO for an unknown vendor -> 404
+POST {{baseUrl}}/api/v1/PurchaseOrder/Create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "poDate": "2026-11-05T00:00:00",
+  "vendorId": 999999,
+  "details": [ { "itemmasterId": {{itemId}}, "quantity": 1, "rate": 100, "discountAmount": 0, "taxPercent": 18 } ]
+}
+
+### 7.10 Edit an Approved PO -> 400
+PUT {{baseUrl}}/api/v1/PurchaseOrder/Update/{{poId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "poDate": "2026-11-05T00:00:00",
+  "vendorId": {{vendorId}},
+  "details": [ { "itemmasterId": {{itemId}}, "quantity": 1, "rate": 100, "discountAmount": 0, "taxPercent": 18 } ]
+}
+
+### 7.11 Delete an Approved PO -> 400
+DELETE {{baseUrl}}/api/v1/PurchaseOrder/Delete/{{poId}}
+Authorization: Bearer {{token}}
+
+### 7.12 Approve the PO again -> 400
+POST {{baseUrl}}/api/v1/PurchaseOrder/Approve/{{poId}}
+Authorization: Bearer {{token}}
+
+### 7.13 Post the receipt again -> 400
+POST {{baseUrl}}/api/v1/Receipt/Post/{{receiptId}}
+Authorization: Bearer {{token}}
+
+### 7.14 Delete a Posted receipt -> 400
+DELETE {{baseUrl}}/api/v1/Receipt/Delete/{{receiptId}}
+Authorization: Bearer {{token}}
+
+### 7.15 Delete a Posted invoice -> 400
+DELETE {{baseUrl}}/api/v1/SalesInvoice/Delete/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### 7.16 Delete an item that has stock -> 400
+DELETE {{baseUrl}}/api/v1/Itemmaster/Delete/{{itemId}}
+Authorization: Bearer {{token}}
+
+### 7.17 Delete a category that still has active items -> 400
+DELETE {{baseUrl}}/api/v1/Category/Delete/{{categoryId}}
+Authorization: Bearer {{token}}
+
+### 7.18 Delete a customer that has invoices -> 400
+DELETE {{baseUrl}}/api/v1/Customer/Delete/{{customerId}}
+Authorization: Bearer {{token}}
+
+### 7.19 Delete a vendor that has purchase orders -> 400
+DELETE {{baseUrl}}/api/v1/Vendor/Delete/{{vendorId}}
+Authorization: Bearer {{token}}
+
+### 7.20 Register the same user again -> 409 Conflict
+POST {{baseUrl}}/api/v1/User/Create
+Content-Type: application/json
+
+{
+  "userName": "{{demoUser}}",
+  "email": "{{demoUser}}@example.com",
+  "password": "{{demoPassword}}",
+  "firstName": "Demo",
+  "lastName": "Teacher",
+  "isActive": true
+}
+
+### 7.21 Delete your own account -> 400
+DELETE {{baseUrl}}/api/v1/User/Delete/{{userId}}
+Authorization: Bearer {{token}}
+
+###
+# =====================================================================================
+#  8. CANCEL FLOW
+# =====================================================================================
+
+### 8.1 Cancel the posted invoice
+POST {{baseUrl}}/api/v1/SalesInvoice/Cancel/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### 8.2 Stock after the cancel
+GET {{baseUrl}}/api/v1/Stock/GetByItem/{{itemId}}
+Authorization: Bearer {{token}}
+
+### 8.3 Cancel it again -> 400
+POST {{baseUrl}}/api/v1/SalesInvoice/Cancel/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### 8.4 A cancelled invoice CAN be deleted
+DELETE {{baseUrl}}/api/v1/SalesInvoice/Delete/{{invoiceId}}
+Authorization: Bearer {{token}}
