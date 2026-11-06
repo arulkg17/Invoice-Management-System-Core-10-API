@@ -3,6 +3,8 @@ using Invoice.CqrsAPI.Features.Receipts;
 using Invoice.CqrsAPI.Features.Receipts.Commands;
 using Invoice.DTOs;
 using Invoice.Model;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Moq;
 
 namespace Invoice.CqrsAPI.Test;
@@ -10,6 +12,7 @@ namespace Invoice.CqrsAPI.Test;
 public class ReceiptTests
 {
     private readonly Mock<IReceiptService> _receipts = new();
+    private readonly Mock<IEventPublisher> _events = new();
 
     private static ReceiptData Data(string? number = null, params ReceiptLine[] lines)
         => new(number, new DateTime(2026, 11, 5), 4, null,
@@ -107,7 +110,7 @@ public class ReceiptTests
         _receipts.Setup(r => r.GetByIdAsync(6)).ReturnsAsync(Existing("Posted"));
 
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            new PostReceiptHandler(_receipts.Object)
+            new PostReceiptHandler(_receipts.Object, _events.Object)
                 .HandleAsync(new PostReceiptCommand(6, "admin"), CancellationToken.None));
     }
 
@@ -117,7 +120,7 @@ public class ReceiptTests
         _receipts.Setup(r => r.GetByIdAsync(6)).ReturnsAsync(Existing());
         _receipts.Setup(r => r.PostAsync(6, "admin")).ReturnsAsync(true);
 
-        await new PostReceiptHandler(_receipts.Object)
+        await new PostReceiptHandler(_receipts.Object, _events.Object)
             .HandleAsync(new PostReceiptCommand(6, "admin"), CancellationToken.None);
 
         _receipts.Verify(r => r.PostAsync(6, "admin"), Times.Once);
@@ -129,7 +132,7 @@ public class ReceiptTests
         _receipts.Setup(r => r.GetByIdAsync(6)).ReturnsAsync((ReceiptDto?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            new PostReceiptHandler(_receipts.Object)
+            new PostReceiptHandler(_receipts.Object, _events.Object)
                 .HandleAsync(new PostReceiptCommand(6, "admin"), CancellationToken.None));
     }
 
@@ -141,5 +144,24 @@ public class ReceiptTests
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new CancelReceiptHandler(_receipts.Object)
                 .HandleAsync(new CancelReceiptCommand(6, "admin"), CancellationToken.None));
+    }
+
+    // ---------------- events ----------------
+
+    [Fact]
+    public async Task Post_publishes_a_ReceiptPosted_event()
+    {
+        _receipts.Setup(r => r.GetByIdAsync(6)).ReturnsAsync(Existing());
+        _receipts.Setup(r => r.PostAsync(6, "admin")).ReturnsAsync(true);
+
+        await new PostReceiptHandler(_receipts.Object, _events.Object)
+            .HandleAsync(new PostReceiptCommand(6, "admin"), CancellationToken.None);
+
+        _events.Verify(e => e.PublishAsync(
+            It.Is<IntegrationEvent>(x => x is ReceiptPostedEvent
+                && ((ReceiptPostedEvent)x).ReceiptId == 6
+                && ((ReceiptPostedEvent)x).ReceiptNumber == "GRN-000006"
+                && ((ReceiptPostedEvent)x).PurchaseOrderId == 4),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

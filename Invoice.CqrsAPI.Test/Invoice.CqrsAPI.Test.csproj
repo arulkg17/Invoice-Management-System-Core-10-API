@@ -10,6 +10,7 @@
 
   <!-- Use the same package versions as your existing Invoice.BAL.Test / Invoice.CoreAPI.Test projects. -->
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />

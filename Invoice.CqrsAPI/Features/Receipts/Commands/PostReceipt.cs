@@ -1,6 +1,8 @@
 using Invoice.BAL.Contracts;
 using Invoice.CqrsAPI.Common;
 using Invoice.CqrsAPI.Cqrs;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Invoice.Model;
 
 namespace Invoice.CqrsAPI.Features.Receipts.Commands;
@@ -19,10 +21,12 @@ public sealed class PostReceiptValidator : RuleValidator<PostReceiptCommand>
 public sealed class PostReceiptHandler : ICommandHandler<PostReceiptCommand, Unit>
 {
     private readonly IReceiptService _receipts;
+    private readonly IEventPublisher _events;
 
-    public PostReceiptHandler(IReceiptService receipts)
+    public PostReceiptHandler(IReceiptService receipts, IEventPublisher events)
     {
         _receipts = receipts;
+        _events = events;
     }
 
     public async Task<Unit> HandleAsync(PostReceiptCommand request, CancellationToken cancellationToken)
@@ -39,6 +43,16 @@ public sealed class PostReceiptHandler : ICommandHandler<PostReceiptCommand, Uni
         {
             throw new BusinessRuleException("The receipt could not be posted.");
         }
+
+        await _events.PublishAsync(new ReceiptPostedEvent
+        {
+            ReceiptId = existing.Id,
+            ReceiptNumber = existing.ReceiptNumber,
+            PurchaseOrderId = existing.PurchaseOrderId,
+            VendorId = existing.VendorId,
+            TotalAmount = existing.TotalAmount,
+            PostedBy = request.PostedBy
+        }, cancellationToken);
 
         return Unit.Value;
     }

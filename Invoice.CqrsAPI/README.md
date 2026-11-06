@@ -49,3 +49,8 @@ No new BAL or DAL. Handlers call the existing `ICategoryService`, `IItemmasterSe
 
     dotnet run --project Invoice.CqrsAPI      # http://localhost:5064/swagger  (CoreAPI stays on 5063)
     dotnet test Invoice.CqrsAPI.Test
+
+## Azure (App Service + Functions + Service Bus)
+
+Posting an invoice, approving a PO or posting a receipt now also publishes an event to an Azure Service Bus topic
+(off by default). See `azure/AZURE-GUIDE.md` for the architecture, local run with emulators, and deployment.

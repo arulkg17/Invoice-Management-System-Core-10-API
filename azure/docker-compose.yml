@@ -1,0 +1,54 @@
+# Local stand-ins for the Azure services used by the lesson:
+#   Azure Service Bus  -> official Service Bus emulator (amqp on localhost:5672)
+#   Azure Storage      -> Azurite (blobs on localhost:10000, used by the Functions host and for the PDF / audit blobs)
+#
+#   1. copy .env.example to .env and read the licence terms; set ACCEPT_EULA=Y to accept them
+#   2. docker compose up -d
+#
+# If the emulator image fails to start, compare this file with the current one on
+# https://learn.microsoft.com/azure/service-bus-messaging/test-locally-with-service-bus-emulator
+name: ims-azure-local
+
+services:
+  servicebus:
+    container_name: ims-servicebus-emulator
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    pull_policy: always
+    volumes:
+      - ./Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    ports:
+      - "5672:5672"
+    environment:
+      SQL_SERVER: sqlserver
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      ACCEPT_EULA: ${ACCEPT_EULA}
+    depends_on:
+      - sqlserver
+    networks:
+      - ims
+
+  # The emulator keeps its metadata in a SQL Server container. Not published on any host port,
+  # so it cannot clash with the SQL Server you already use for IMS.
+  sqlserver:
+    container_name: ims-servicebus-sql
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${ACCEPT_EULA}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    networks:
+      - ims
+
+  azurite:
+    container_name: ims-azurite
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    networks:
+      - ims
+
+networks:
+  ims:
+    name: ims-network

@@ -1,6 +1,8 @@
 using Invoice.BAL.Contracts;
 using Invoice.CqrsAPI.Common;
 using Invoice.CqrsAPI.Cqrs;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Invoice.Model;
 
 namespace Invoice.CqrsAPI.Features.SalesInvoices.Commands;
@@ -19,10 +21,12 @@ public sealed class PostSalesInvoiceValidator : RuleValidator<PostSalesInvoiceCo
 public sealed class PostSalesInvoiceHandler : ICommandHandler<PostSalesInvoiceCommand, Unit>
 {
     private readonly ISalesInvoiceService _invoices;
+    private readonly IEventPublisher _events;
 
-    public PostSalesInvoiceHandler(ISalesInvoiceService invoices)
+    public PostSalesInvoiceHandler(ISalesInvoiceService invoices, IEventPublisher events)
     {
         _invoices = invoices;
+        _events = events;
     }
 
     public async Task<Unit> HandleAsync(PostSalesInvoiceCommand request, CancellationToken cancellationToken)
@@ -39,6 +43,18 @@ public sealed class PostSalesInvoiceHandler : ICommandHandler<PostSalesInvoiceCo
         {
             throw new BusinessRuleException("The sales invoice could not be posted.");
         }
+
+        // The invoice is posted and saved. Now tell everybody else (email, stock watch, audit ...).
+        // Publishing never throws, so a broker problem cannot undo or hide a successful post.
+        await _events.PublishAsync(new SalesInvoicePostedEvent
+        {
+            InvoiceId = existing.Id,
+            InvoiceNumber = existing.InvoiceNumber ?? string.Empty,
+            CustomerId = existing.CustomerId,
+            TotalAmount = existing.TotalAmount,
+            PostedBy = request.PostedBy,
+            Lines = existing.Details.Select(d => new EventLine(d.ItemmasterId, d.Quantity)).ToList()
+        }, cancellationToken);
 
         return Unit.Value;
     }

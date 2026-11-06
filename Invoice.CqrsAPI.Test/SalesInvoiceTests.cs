@@ -4,6 +4,8 @@ using Invoice.CqrsAPI.Features.SalesInvoices;
 using Invoice.CqrsAPI.Features.SalesInvoices.Commands;
 using Invoice.DTOs;
 using Invoice.Model;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Moq;
 
 namespace Invoice.CqrsAPI.Test;
@@ -12,6 +14,7 @@ public class SalesInvoiceTests
 {
     private readonly Mock<ISalesInvoiceService> _invoices = new();
     private readonly Mock<IReferenceChecks> _references = new();
+    private readonly Mock<IEventPublisher> _events = new();
 
     private static SalesInvoiceData Data(DateTime? due = null, string? number = null)
         => new(number, new DateTime(2026, 11, 5), due, 2, null,
@@ -123,7 +126,7 @@ public class SalesInvoiceTests
         _invoices.Setup(i => i.GetByIdAsync(8)).ReturnsAsync(Existing());
         _invoices.Setup(i => i.PostAsync(8, "admin")).ReturnsAsync(true);
 
-        await new PostSalesInvoiceHandler(_invoices.Object)
+        await new PostSalesInvoiceHandler(_invoices.Object, _events.Object)
             .HandleAsync(new PostSalesInvoiceCommand(8, "admin"), CancellationToken.None);
 
         _invoices.Verify(i => i.PostAsync(8, "admin"), Times.Once);
@@ -135,7 +138,7 @@ public class SalesInvoiceTests
         _invoices.Setup(i => i.GetByIdAsync(8)).ReturnsAsync(Existing("Cancelled"));
 
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            new PostSalesInvoiceHandler(_invoices.Object)
+            new PostSalesInvoiceHandler(_invoices.Object, _events.Object)
                 .HandleAsync(new PostSalesInvoiceCommand(8, "admin"), CancellationToken.None));
     }
 
@@ -147,5 +150,41 @@ public class SalesInvoiceTests
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new CancelSalesInvoiceHandler(_invoices.Object)
                 .HandleAsync(new CancelSalesInvoiceCommand(8, "admin"), CancellationToken.None));
+    }
+
+    // ---------------- events ----------------
+
+    [Fact]
+    public async Task Post_publishes_a_SalesInvoicePosted_event_with_the_lines()
+    {
+        var invoice = Existing();
+        invoice.TotalAmount = 354;
+        invoice.Details = new List<SalesInvoiceDetailDto> { new() { ItemmasterId = 7, Quantity = 3 } };
+
+        _invoices.Setup(i => i.GetByIdAsync(8)).ReturnsAsync(invoice);
+        _invoices.Setup(i => i.PostAsync(8, "admin")).ReturnsAsync(true);
+
+        await new PostSalesInvoiceHandler(_invoices.Object, _events.Object)
+            .HandleAsync(new PostSalesInvoiceCommand(8, "admin"), CancellationToken.None);
+
+        _events.Verify(e => e.PublishAsync(
+            It.Is<IntegrationEvent>(x => x is SalesInvoicePostedEvent
+                && ((SalesInvoicePostedEvent)x).InvoiceId == 8
+                && ((SalesInvoicePostedEvent)x).InvoiceNumber == "INV-000008"
+                && ((SalesInvoicePostedEvent)x).TotalAmount == 354
+                && ((SalesInvoicePostedEvent)x).Lines.Count == 1),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task A_rejected_post_publishes_nothing()
+    {
+        _invoices.Setup(i => i.GetByIdAsync(8)).ReturnsAsync(Existing("Cancelled"));
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            new PostSalesInvoiceHandler(_invoices.Object, _events.Object)
+                .HandleAsync(new PostSalesInvoiceCommand(8, "admin"), CancellationToken.None));
+
+        _events.Verify(e => e.PublishAsync(It.IsAny<IntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

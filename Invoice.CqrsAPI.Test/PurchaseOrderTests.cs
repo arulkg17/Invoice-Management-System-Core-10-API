@@ -4,6 +4,8 @@ using Invoice.CqrsAPI.Features.PurchaseOrders;
 using Invoice.CqrsAPI.Features.PurchaseOrders.Commands;
 using Invoice.DTOs;
 using Invoice.Model;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Moq;
 
 namespace Invoice.CqrsAPI.Test;
@@ -12,6 +14,7 @@ public class PurchaseOrderTests
 {
     private readonly Mock<IPurchaseOrderService> _orders = new();
     private readonly Mock<IReferenceChecks> _references = new();
+    private readonly Mock<IEventPublisher> _events = new();
 
     private static PurchaseOrderData Data(params DocumentLine[] lines)
         => new(null, new DateTime(2026, 11, 5), 3, "note",
@@ -138,7 +141,7 @@ public class PurchaseOrderTests
         _orders.Setup(o => o.GetByIdAsync(5)).ReturnsAsync(Existing("Approved"));
 
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            new ApprovePurchaseOrderHandler(_orders.Object)
+            new ApprovePurchaseOrderHandler(_orders.Object, _events.Object)
                 .HandleAsync(new ApprovePurchaseOrderCommand(5, "boss"), CancellationToken.None));
 
         _orders.Verify(o => o.ApproveAsync(It.IsAny<int>(), It.IsAny<string?>()), Times.Never);
@@ -150,7 +153,7 @@ public class PurchaseOrderTests
         _orders.Setup(o => o.GetByIdAsync(5)).ReturnsAsync(Existing());
         _orders.Setup(o => o.ApproveAsync(5, "boss")).ReturnsAsync(true);
 
-        await new ApprovePurchaseOrderHandler(_orders.Object)
+        await new ApprovePurchaseOrderHandler(_orders.Object, _events.Object)
             .HandleAsync(new ApprovePurchaseOrderCommand(5, "boss"), CancellationToken.None);
 
         _orders.Verify(o => o.ApproveAsync(5, "boss"), Times.Once);
@@ -162,7 +165,7 @@ public class PurchaseOrderTests
         _orders.Setup(o => o.GetByIdAsync(5)).ReturnsAsync((PurchaseOrderDto?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            new ApprovePurchaseOrderHandler(_orders.Object)
+            new ApprovePurchaseOrderHandler(_orders.Object, _events.Object)
                 .HandleAsync(new ApprovePurchaseOrderCommand(5, "boss"), CancellationToken.None));
     }
 
@@ -174,5 +177,36 @@ public class PurchaseOrderTests
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new CancelPurchaseOrderHandler(_orders.Object)
                 .HandleAsync(new CancelPurchaseOrderCommand(5, "boss"), CancellationToken.None));
+    }
+
+    // ---------------- events ----------------
+
+    [Fact]
+    public async Task Approve_publishes_a_PurchaseOrderApproved_event()
+    {
+        _orders.Setup(o => o.GetByIdAsync(5)).ReturnsAsync(Existing());
+        _orders.Setup(o => o.ApproveAsync(5, "boss")).ReturnsAsync(true);
+
+        await new ApprovePurchaseOrderHandler(_orders.Object, _events.Object)
+            .HandleAsync(new ApprovePurchaseOrderCommand(5, "boss"), CancellationToken.None);
+
+        _events.Verify(e => e.PublishAsync(
+            It.Is<IntegrationEvent>(x => x is PurchaseOrderApprovedEvent
+                && ((PurchaseOrderApprovedEvent)x).PurchaseOrderId == 5
+                && ((PurchaseOrderApprovedEvent)x).PONumber == "PO-1"
+                && ((PurchaseOrderApprovedEvent)x).ApprovedBy == "boss"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task A_rejected_approve_publishes_nothing()
+    {
+        _orders.Setup(o => o.GetByIdAsync(5)).ReturnsAsync(Existing("Approved"));
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            new ApprovePurchaseOrderHandler(_orders.Object, _events.Object)
+                .HandleAsync(new ApprovePurchaseOrderCommand(5, "boss"), CancellationToken.None));
+
+        _events.Verify(e => e.PublishAsync(It.IsAny<IntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

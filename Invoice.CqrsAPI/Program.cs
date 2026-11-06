@@ -3,6 +3,7 @@ using Invoice.CqrsAPI.Common;
 using Invoice.CqrsAPI.Cqrs;
 using Invoice.CqrsAPI.Extensions;
 using Invoice.CqrsAPI.Infrastructure;
+using Invoice.CqrsAPI.Messaging;
 using Invoice.CqrsAPI.Middleware;
 using Microsoft.OpenApi;
 using Serilog;
@@ -44,6 +45,11 @@ builder.Services.AddInvoiceBusinessServices();
 // ============================================================
 builder.Services.AddCqrs(typeof(Program).Assembly);
 builder.Services.AddScoped<IReferenceChecks, ReferenceChecks>();   // shared "does it exist?" checks
+
+// ============================================================
+// Azure Service Bus: publishes integration events (off by default)
+// ============================================================
+builder.Services.AddEventPublishing(builder.Configuration);
 
 // ============================================================
 // JWT

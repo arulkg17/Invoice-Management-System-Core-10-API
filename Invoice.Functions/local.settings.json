@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "ServiceBusConnection": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+
+    "ImsApi__BaseUrl": "http://localhost:5064/",
+    "ImsApi__UserName": "demo1",
+    "ImsApi__Password": "Passw0rd!",
+
+    "OverdueSchedule": "0 0 8 * * *"
+  }
+}

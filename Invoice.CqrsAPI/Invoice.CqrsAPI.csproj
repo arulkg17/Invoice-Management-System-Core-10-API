@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" Version="10.2.1" />
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
@@ -26,6 +28,7 @@
     <ProjectReference Include="..\Invoice.DAL\Invoice.DAL.csproj" />
     <ProjectReference Include="..\Invoice.Data\Invoice.Data.csproj" />
     <ProjectReference Include="..\Invoice.DTOs\Invoice.DTOs.csproj" />
+    <ProjectReference Include="..\Invoice.Events\Invoice.Events.csproj" />
     <ProjectReference Include="..\Invoice.Model\Invoice.Model.csproj" />
   </ItemGroup>
 

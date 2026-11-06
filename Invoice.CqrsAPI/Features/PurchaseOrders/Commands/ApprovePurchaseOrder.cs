@@ -1,6 +1,8 @@
 using Invoice.BAL.Contracts;
 using Invoice.CqrsAPI.Common;
 using Invoice.CqrsAPI.Cqrs;
+using Invoice.CqrsAPI.Messaging;
+using Invoice.Events;
 using Invoice.Model;
 
 namespace Invoice.CqrsAPI.Features.PurchaseOrders.Commands;
@@ -19,10 +21,12 @@ public sealed class ApprovePurchaseOrderValidator : RuleValidator<ApprovePurchas
 public sealed class ApprovePurchaseOrderHandler : ICommandHandler<ApprovePurchaseOrderCommand, Unit>
 {
     private readonly IPurchaseOrderService _orders;
+    private readonly IEventPublisher _events;
 
-    public ApprovePurchaseOrderHandler(IPurchaseOrderService orders)
+    public ApprovePurchaseOrderHandler(IPurchaseOrderService orders, IEventPublisher events)
     {
         _orders = orders;
+        _events = events;
     }
 
     public async Task<Unit> HandleAsync(ApprovePurchaseOrderCommand request, CancellationToken cancellationToken)
@@ -40,6 +44,15 @@ public sealed class ApprovePurchaseOrderHandler : ICommandHandler<ApprovePurchas
         {
             throw new BusinessRuleException("The purchase order could not be approved.");
         }
+
+        await _events.PublishAsync(new PurchaseOrderApprovedEvent
+        {
+            PurchaseOrderId = existing.Id,
+            PONumber = existing.PONumber,
+            VendorId = existing.VendorId,
+            TotalAmount = existing.TotalAmount,
+            ApprovedBy = request.ApprovedBy
+        }, cancellationToken);
 
         return Unit.Value;
     }

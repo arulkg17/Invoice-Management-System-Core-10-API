@@ -1,0 +1,8 @@
+# Try the HTTP-triggered function locally (func start -> http://localhost:7071)
+# 1) post an invoice through the API (Invoice.CqrsAPI.http section 6)  2) then:
+
+@fnBase = http://localhost:7071
+@invoiceId = 1
+
+### Re-announce a Posted invoice (locally no function key is needed; in Azure add ?code=<function key>)
+POST {{fnBase}}/api/invoices/{{invoiceId}}/resend
